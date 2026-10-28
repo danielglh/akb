@@ -1,0 +1,3 @@
+Synthetic evaluation source: Atlas API policy v1, 2026-10-01.
+For v1 transient failures, retry at most three times using exponential backoff.
+Do not retry authentication errors. This fictional source is provided only for AKB evaluation.

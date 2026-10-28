@@ -1,0 +1,3 @@
+Synthetic Atlas API policy v1, 2026-10-01.
+Transient failures may be retried three times at most, with exponential backoff.
+Authentication errors must not be retried. No additional policy changes.

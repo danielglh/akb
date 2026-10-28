@@ -1,0 +1,3 @@
+Synthetic Atlas API policy addendum, 2026-10-21.
+The v1 retry limit remains three, with exponential backoff. Authentication errors remain non-retryable.
+New requirement: include a request ID in retry diagnostics.

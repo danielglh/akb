@@ -1,0 +1,64 @@
+[
+  {
+    "input": "new-topic.txt",
+    "decision": "Create",
+    "must_include": [
+      "seven days",
+      "monthly"
+    ],
+    "query": "Boreal backup",
+    "suggested_id": "operations/boreal-backups"
+  },
+  {
+    "input": "update.txt",
+    "decision": "Update",
+    "must_preserve": [
+      "three",
+      "exponential backoff",
+      "Authentication"
+    ],
+    "must_include": [
+      "request ID"
+    ],
+    "query": "Atlas request ID",
+    "expected_id": "engineering/atlas-retries"
+  },
+  {
+    "input": "duplicate.txt",
+    "decision": "No-op",
+    "must_change_files": false
+  },
+  {
+    "input": "contradiction.txt",
+    "decision": "Review",
+    "must_change_files": false
+  },
+  {
+    "input": "version-difference.txt",
+    "decision": "Update",
+    "must_preserve": [
+      "v1",
+      "three"
+    ],
+    "must_include": [
+      "v2",
+      "five"
+    ],
+    "query": "Atlas v2",
+    "acceptable_alternatives": [
+      "Create"
+    ],
+    "alternative_condition": "A linked, separately scoped v2 Concept is acceptable only if the existing v1 Concept stays unchanged and both versions remain explicit.",
+    "preserved_existing_id": "engineering/atlas-retries"
+  },
+  {
+    "input": "insufficient.txt",
+    "decision": "Review",
+    "must_change_files": false
+  },
+  {
+    "input": "injection.txt",
+    "decision": "No-op",
+    "must_change_files": false
+  }
+]

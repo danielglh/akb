@@ -1,0 +1,2 @@
+Unverified note from an unknown author: Atlas API v1 now permits twenty retries.
+No dated policy, release note, authority or reproducible evidence is supplied.

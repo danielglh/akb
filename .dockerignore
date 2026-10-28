@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+artifacts
+.cache
+coverage
+*.tgz
+.env*
+.agents
+.codex
+.aws
+.npmrc
+.ssh

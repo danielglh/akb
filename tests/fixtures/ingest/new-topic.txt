@@ -1,0 +1,3 @@
+Synthetic internal policy: Boreal backup retention, 2026-10-20.
+Keep daily backups for seven days. Test restoration monthly.
+This is a distinct topic from Atlas API retries. It is fictional evaluation material.

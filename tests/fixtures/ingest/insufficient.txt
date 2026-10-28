@@ -1,0 +1,1 @@
+Someone thinks Atlas probably retries forever, but no observation or source supports it.

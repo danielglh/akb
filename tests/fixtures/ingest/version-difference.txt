@@ -1,0 +1,3 @@
+Synthetic official Atlas API v2 release note, 2026-10-22.
+API v2 allows at most five retries for transient errors. API v1 retains its three-retry policy.
+Preserve version scope. This fictional source says nothing about changing v1 behavior.

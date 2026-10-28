@@ -1,0 +1,45 @@
+{
+  "name": "agent-knowledge-base",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first OKF knowledge tools for agents",
+  "type": "module",
+  "bin": {
+    "akb": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "examples",
+    "tests/fixtures/ingest",
+    "docs/mvp-validation.md",
+    "docs/evaluation.md",
+    "docs/agent-evaluation.json",
+    "README.md",
+    "AKB_DESIGN.md"
+  ],
+  "engines": {
+    "node": ">=24 <27"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && vitest run",
+    "check": "npm test",
+    "test:qmd": "AKB_TEST_QMD=1 npm test",
+    "eval:prepare": "npm run build && node scripts/eval.mjs prepare",
+    "eval:grade": "npm run build && node scripts/eval.mjs grade",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "commander": "15.0.0",
+    "remark": "15.0.1",
+    "remark-gfm": "4.0.1",
+    "yaml": "2.9.1"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "typescript": "6.0.3",
+    "vitest": "5.0.4"
+  }
+}
