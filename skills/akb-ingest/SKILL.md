@@ -1,5 +1,5 @@
 ---
-name: kb-ingest
+name: akb-ingest
 description: Curate authorized Markdown or text into an AKB knowledge base, updating existing OKF Concepts and preserving evidence. Use when a user asks to save reusable knowledge, ingest notes or update AKB from new material.
 ---
 

@@ -118,9 +118,11 @@ Do not treat the adapter as a security boundary for an Agent that can access you
 
 For repeatable evaluation, run `npm run eval:prepare`, have the tested Agent complete each generated `task.md`, then run `npm run eval:grade -- RUN_DIR` (append `ripgrep qmd` to require both real backends). The grader saves per-case checks, file hashes, citations and Top-5 retrieval evidence in `report.json`, and exits nonzero on failure. See [Eval workflow and limits](docs/evaluation.md). This is separate from the historical evaluation below; automated assertions still require semantic review.
 
-Skills are in `skills/kb-ingest` and `skills/kb-search`. Install them using the chosen Agent's standard skill discovery mechanism; installation into global Agent directories is not performed automatically. Both need an installed `akb`, or the absolute built CLI path. They do not call QMD directly.
+Skills are in `skills/akb-ingest` and `skills/akb-search`. Install them using the chosen Agent's standard skill discovery mechanism; installation into global Agent directories is not performed automatically. Both need an installed `akb`, or the absolute built CLI path. They do not call QMD directly.
 
-`kb-ingest` selects Create / Update / No-op / Review. `kb-search` reads current pages and cites the supporting section. CLI validation checks structure, not factual truth or whether the Agent made a good semantic decision.
+These replace the earlier `kb-ingest` / `kb-search` names. Replace old installed copies and regenerate any pending Eval task directories so their Skill paths use the new names.
+
+`akb-ingest` selects Create / Update / No-op / Review. `akb-search` reads current pages and cites the supporting section. CLI validation checks structure, not factual truth or whether the Agent made a good semantic decision.
 
 `examples/personal-kb` is a fictional OKF Bundle; initialize its copied directory as a Git repository before registering it. Sources are synthetic and labeled. `tests/fixtures/ingest/cases.json` defines seven semantic cases. For each, start from a fresh copy of the example, give the Agent the corresponding input and the Skill, then inspect actual decisions, files, sources and subsequent Top-5 keyword retrieval. No-op / Review must leave knowledge files unchanged.
 

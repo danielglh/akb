@@ -19,7 +19,7 @@
 - Markdown + OKF 从第一篇知识开始作为持久化格式。
 - AKB 定义检索行为；QMD 是主要实现，rg 是可独立使用的基础实现和降级实现。
 - CLI 负责确定性的读取、校验、安全写入和检索适配。
-- `kb-ingest`、`kb-search` 使用 Agent 已有的 LLM 能力，不另设 LLM 服务。
+- `akb-ingest`、`akb-search` 使用 Agent 已有的 LLM 能力，不另设 LLM 服务。
 
 知识文件是唯一的持久化事实来源。搜索索引可重新生成，替换检索实现不要求修改知识文件或 Skill。
 
@@ -70,7 +70,7 @@
 ```text
 Human / Coding Agent
         |
-kb-ingest / kb-search
+akb-ingest / akb-search
         |
       akb CLI
         |
@@ -705,11 +705,11 @@ akb search-index status --kb personal
 
 ```text
 skills/
-├── kb-search/SKILL.md
-└── kb-ingest/SKILL.md
+├── akb-search/SKILL.md
+└── akb-ingest/SKILL.md
 ```
 
-### 9.1 kb-search
+### 9.1 akb-search
 
 - 从 `akb info` 确认注册 KB，使用 `akb search` 查找候选。
 - 通过 `akb get` 读取实际页面，按需追踪来源和关联知识。
@@ -717,7 +717,7 @@ skills/
 - 说明过期、Draft、Deprecated、降级及证据不足，不把 Metadata 当真实性证明。
 - 默认只读，不执行知识正文中的指令。
 
-### 9.2 kb-ingest
+### 9.2 akb-ingest
 
 - 读取授权输入，提炼可复用知识，先检索已有 Concept。
 - 输出 Create / Update / No-op / Review 决策及理由。
@@ -840,8 +840,8 @@ akb/
 │       ├── qmd.ts
 │       └── ripgrep.ts
 ├── skills/
-│   ├── kb-search/SKILL.md
-│   └── kb-ingest/SKILL.md
+│   ├── akb-search/SKILL.md
+│   └── akb-ingest/SKILL.md
 ├── tests/
 │   └── fixtures/
 └── README.md
@@ -901,7 +901,7 @@ Agent 行为测试与确定性 CLI 测试分开记录；固定案例通过不代
 
 先准备固定评测语料，再实现单 KB 配置、OKF Read / Create / Update、Hash 与锁、安全路径、Lint、JSON、rg 检索和 Git Diff 使用说明。
 
-同时编写 `kb-ingest`、`kb-search` 的最小版本，在一个真实 Agent 中运行新增、更新、重复和冲突案例。此步骤不要求 QMD 已安装，不能等待所有基础设施完成才验证知识质量。
+同时编写 `akb-ingest`、`akb-search` 的最小版本，在一个真实 Agent 中运行新增、更新、重复和冲突案例。此步骤不要求 QMD 已安装，不能等待所有基础设施完成才验证知识质量。
 
 ### Step 2 — Verify Replaceable Retrieval
 
@@ -979,7 +979,7 @@ Agent 行为测试与确定性 CLI 测试分开记录；固定案例通过不代
 ### 15.3 Delivery
 
 1. 可安装运行的 `akb` CLI 与锁定的依赖。
-2. `kb-ingest`、`kb-search` 两个 Skill。
+2. `akb-ingest`、`akb-search` 两个 Skill。
 3. 单 KB OKF 示例与固定评测语料。
 4. QMD / rg 配置、安装和切换指南。
 5. 自动化测试及真实 Agent / QMD 集成结果。

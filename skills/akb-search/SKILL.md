@@ -1,5 +1,5 @@
 ---
-name: kb-search
+name: akb-search
 description: Search a registered AKB knowledge base and answer with citations to current OKF pages. Use when a user asks to consult, find or explain knowledge stored in AKB.
 ---
 
