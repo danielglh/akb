@@ -1,7 +1,7 @@
 # Agent Knowledge Base — 技术设计方案
 
-**Version:** 1.1 Draft  
-**Date:** 2026-10-26  
+**Version:** 1.2 Draft\
+**Date:** 2026-10-29\
 **Status:** MVP 0.1.0 complete; validated on macOS and Linux arm64 (see docs/mvp-validation.md)  
 **Working Name:** `akb` (Agent Knowledge Base)
 
@@ -25,11 +25,11 @@
 
 ### 1.1 MVP Scope
 
-首版只处理一个本地 Git Repository 中的一个 OKF Bundle；目录分类由用户决定。
+当前支持多个命名 KB；每个 KB 是一个本地 Git Repository 中的一个 OKF Bundle。每条内容命令必须显式提供已注册的 `--kb NAME`，不设默认库；目录分类由用户决定。
 
 必须交付：
 
-- 初始化和注册一个 KB。
+- 初始化、按名称注册和列出多个 KB；每次显式选择一个已注册 KB。
 - Concept 读取、创建、更新，保留来源及既有有效结论。
 - QMD 关键词检索、rg 关键词检索及明确的降级行为。
 - YAML / OKF 基础校验、链接检查、安全写入、Git Diff。
@@ -51,7 +51,7 @@
 
 以下均不属于 MVP 验收条件：
 
-- 多 KB Registry、跨 KB 检索、个人与团队协作、Review 分支策略、多 Agent Worktree 工作流。
+- 跨 KB 聚合检索、个人与团队协作、Review 分支策略、多 Agent Worktree 工作流。
 - Semantic / Hybrid Search、Embedding 管理与模型调优。
 - 自动导航生成或重写、自动维护、批量去重、页面合并及移动。
 - `kb-maintain`、独立 `kb-review` Skill、MCP Server。
@@ -131,10 +131,12 @@ MVP 注册一个本地 Git Repository，其根目录也是 OKF Bundle 根目录�
 用户级配置遵循 XDG；默认路径为 `~/.config/akb/config.yaml`。
 
 ```yaml
-version: 1
-knowledge_base:
-  name: personal
-  path: ~/knowledge/personal-kb
+version: 2
+knowledge_bases:
+  - name: personal
+    path: ~/knowledge/personal-kb
+  - name: work
+    path: ~/knowledge/work-kb
 retrieval:
   provider: qmd
   fallback: ripgrep
@@ -144,14 +146,17 @@ retrieval:
 - `provider` 只能为 `qmd` 或 `ripgrep`；`fallback` 只能为 `ripgrep` 或 `none`。
 - QMD 的 Collection、命名索引及缓存位置由适配器管理，不进入通用 KB 数据模型。
 - 不把本机绝对路径写入知识文件或提交到 KB。
-- MVP 再注册其他 KB 时明确报错，不隐式替换当前 KB；更换须先注销。
+- 允许同时注册多个 KB；同名重复注册报错，不覆盖现有登记。`list` 返回名称和路径。
+- 配置不保存默认或当前 KB。所有库级命令都必须显式提供 `--kb NAME`，即使只注册了一个库。
+- v1 单库配置只读时转换为内存中的 v2；下一次注册/注销在配置锁下原子写入 v2，保留旧登记和检索设置。旧 CLI 不支持 v2，不能混用。
+- 检索后端配置为所有 KB 共用；每个 KB 的索引与文件锁仍按规范化根路径隔离。
 - `remove` 只注销配置，不删除目录、Git 历史或知识文件。
 
 ### 3.3 Scope and Discovery
 
-`akb info` 返回所注册 KB 的名称、路径、Git 状态、实际检索配置和依赖状态。
+`akb list` 返回所有注册 KB 的名称和路径；`akb info --kb NAME` 返回指定 KB 的名称、路径、Git 状态、实际检索配置和依赖状态。
 
-所有内容操作都限定在该 Bundle。可省略 `--kb` 使用唯一注册 KB；如显式指定名称，必须与注册名称一致，未知名称报错，禁止退回其他目录。首版不提供跨 KB 查询或自动发现磁盘上其他知识库的能力。
+所有内容操作都限定在显式选择的 Bundle。缺少 `--kb NAME` 返回 `KB_REQUIRED`；名称未注册返回 `UNKNOWN_KB`，两者均退出 2，不读取或修改其他 KB。禁止按当前目录、唯一登记或上次操作隐式选库，不提供跨 KB 聚合查询或自动发现磁盘上其他知识库的能力。
 
 ---
 
@@ -431,7 +436,7 @@ rg 实现可通过配置直接选择，不只作为异常分支。两个实现�
 
 ### 5.6 Progressive Retrieval and Filtering
 
-1. 确认唯一注册 KB 或校验显式名称。
+1. 强制检查 `--kb NAME` 已提供且该名称已注册。
 2. 搜索标题及关键词，获得有限候选。
 3. 通过 `akb get` 读取候选的 Metadata 与正文。
 4. 必要时读取关联 Concept 和来源。
@@ -637,13 +642,14 @@ MVP 写入目标必须处于所注册 Git Repository，写入保留工作区 Dif
 ```bash
 akb init ./my-kb --git
 akb add personal ./my-kb
-akb info --format json
+akb list --format json
+akb info --kb personal --format json
 akb remove personal
 ```
 
 `init` 创建最小根 `index.md`；`--git` 在新目录初始化 Git，默认不连接远程或提交。已有同名文件不覆盖；没有 `--git` 时可在已有 Git 根目录初始化 Bundle。首版不在非 Git 目录写知识，须先完成 Git 初始化。
 
-`add` 注册唯一 KB，`remove` 只注销。首版不实现多 KB `list`、隐式切换或默认个人 / 团队双仓配置。
+`add` 可按不同名称注册多个 KB；同名拒绝覆盖。`list` 列出所有登记，`remove NAME` 只注销该名称且不删除文件。无默认库，也不实现 `use` 或隐式切换；库级命令必须显式提供 `--kb NAME`。
 
 ### 8.2 Search and Read
 
@@ -740,11 +746,11 @@ Skill 只依赖标准 `SKILL.md`、Shell、AKB CLI 和 JSON，不直接依赖 QM
 
 ### 10.1 Knowledge Isolation
 
-MVP 仅注册一个 KB，不提供多用户权限系统。以下个人 / 团队要求约束后续扩展，不属于首版已实现的隔离能力。
+当前可注册多个 KB，但每次操作必须显式选一个。多库登记不提供多用户权限系统；操作系统权限仍是数据访问边界。以下个人 / 团队要求不代表已实现团队发布隔离。
 
 个人 KB 和团队 KB 必须使用不同目录及 Git Repository。
 
-默认配置必须让 Agent 明确选择允许访问的 KB。
+每次操作都必须让 Agent 根据用户指定的已注册名称选择允许访问的 KB，不配置默认库。
 
 不应为方便搜索，把个人与公司 KB 合并进入一个所有 Agent 都能访问的全局索引。
 
@@ -899,7 +905,7 @@ Agent 行为测试与确定性 CLI 测试分开记录；固定案例通过不代
 
 ### Step 1 — Build the Smallest Working Loop
 
-先准备固定评测语料，再实现单 KB 配置、OKF Read / Create / Update、Hash 与锁、安全路径、Lint、JSON、rg 检索和 Git Diff 使用说明。
+原 MVP 先实现单 KB 闭环；2026-10-29 扩展为多 KB Registry，库级命令强制显式 `--kb NAME`，保留 OKF Read / Create / Update、Hash 与锁、安全路径、Lint、JSON 和独立检索接口。
 
 同时编写 `akb-ingest`、`akb-search` 的最小版本，在一个真实 Agent 中运行新增、更新、重复和冲突案例。此步骤不要求 QMD 已安装，不能等待所有基础设施完成才验证知识质量。
 
@@ -915,7 +921,7 @@ Agent 行为测试与确定性 CLI 测试分开记录；固定案例通过不代
 
 - 关键词无法覆盖真实问题：评估 QMD Semantic / Hybrid Search。
 - 手工导航造成实际维护负担：增加安全的导航生成。
-- 单 KB 闭环稳定且出现团队需求：增加多 KB、发布 Worktree、受保护分支与 Review 模式。
+- 多 KB 注册和显式选库已纳入当前范围；团队需求出现后再考虑发布 Worktree、受保护分支与 Review 模式。
 - 重复、过期问题持续出现：考虑 `kb-maintain` 或独立 `kb-review`。
 - 外部资料提取成为瓶颈：增加特定来源 Adapter。
 
@@ -950,7 +956,7 @@ Agent 行为测试与确定性 CLI 测试分开记录；固定案例通过不代
 - [x] 设计面向 macOS / Linux；交付记录列出实际测试平台与已知限制。
 - [x] 索引 / 缓存不进入知识仓库；移除工具后知识仍可读、可迁移。
 
-多 KB、团队 Review 模式、导航自动生成、四个 Skill 和 Hybrid Search 均不属于本次验收。
+原 MVP 验收没有覆盖多 KB；后续多 KB 和强制选库验证单独记录在验收文档中。跨库聚合检索、团队 Review 模式、导航自动生成、四个 Skill 和 Hybrid Search 仍不属于当前范围。
 
 ---
 
@@ -980,7 +986,7 @@ Agent 行为测试与确定性 CLI 测试分开记录；固定案例通过不代
 
 1. 可安装运行的 `akb` CLI 与锁定的依赖。
 2. `akb-ingest`、`akb-search` 两个 Skill。
-3. 单 KB OKF 示例与固定评测语料。
+3. OKF 示例与固定评测语料；多 KB 注册、显式选库和作用域隔离回归测试。
 4. QMD / rg 配置、安装和切换指南。
 5. 自动化测试及真实 Agent / QMD 集成结果。
 6. README：从初始化、摄取、Diff 到再次检索的完整示例。

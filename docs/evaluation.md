@@ -20,7 +20,7 @@ npm run eval:prepare -- ./artifacts/eval
 
 ## 执行 Agent
 
-让待测 Agent 在新的上下文中读取一个案例的 `task.md` 并完成摄取，七个案例分别执行。任务文件只提供输入、Skill、CLI 路径及输出协议，不包含标准答案。Agent 必须在每次 CLI 调用中使用该案例指定的 `XDG_CONFIG_HOME` 和 `XDG_CACHE_HOME`，只通过 CLI 写入知识。
+让待测 Agent 在新的上下文中读取一个案例的 `task.md` 并完成摄取，七个案例分别执行。任务文件只提供输入、Skill、CLI 路径及输出协议，不包含标准答案。Agent 必须在每次 CLI 调用中使用该案例指定的 `XDG_CONFIG_HOME` 和 `XDG_CACHE_HOME`，只通过 CLI 写入知识，并在所有库级命令中显式提供 `--kb evaluation`；不允许隐式选库。
 
 Agent 最后写入该案例的 `response.json`，例如：
 

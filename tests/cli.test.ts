@@ -7,8 +7,9 @@ import { parse, stringify } from 'yaml';
 
 let temp: string, root: string, env: NodeJS.ProcessEnv;
 const cli = resolve('dist/cli.js');
-function invoke(args: string[], exitCode = 0) {
-  const result = spawnSync(process.execPath, [cli, ...args, '--format', 'json'], { env, encoding: 'utf8', timeout: 15_000 });
+function invoke(args: string[], exitCode = 0, selectKb = true) {
+  const scope = selectKb && !args.includes('--kb') && ['info', 'get', 'create', 'update', 'search', 'lint', 'search-index'].includes(args[0]!) ? ['--kb', 'personal'] : [];
+  const result = spawnSync(process.execPath, [cli, ...scope, ...args, '--format', 'json'], { env, encoding: 'utf8', timeout: 15_000 });
   expect(result.error).toBeUndefined();
   expect(result.status, result.stderr || result.stdout).toBe(exitCode);
   const response = JSON.parse(result.stdout);
@@ -55,5 +56,47 @@ it('rejects malformed CLI input with structured errors', () => {
   expect(invoke(['update', '--path', 'test', '--from-file', 'missing'], 2).error.code).toBe('INVALID_ARGUMENT');
   expect(invoke(['search', 'word', '--mode', 'hybrid'], 2).error.code).toBe('UNSUPPORTED_MODE');
   expect(invoke(['get', '../private'], 6).error.code).toBe('UNSAFE_PATH');
-  expect(invoke(['add', 'other', root], 2).error.code).toBe('KB_ALREADY_REGISTERED');
+  expect(invoke(['add', 'personal', root], 2).error.code).toBe('KB_ALREADY_REGISTERED');
+});
+
+it('requires an explicit registered KB even when only one exists', () => {
+  for (const args of [['info'], ['get', 'topic'], ['search', 'word'], ['lint'], ['search-index', 'status'],
+    ['create', '--path', 'topic', '--from-file', '/missing'],
+    ['update', '--path', 'topic', '--from-file', '/missing', '--expect-hash', 'a'.repeat(64)]]) {
+    expect(invoke(args, 2, false).error.code).toBe('KB_REQUIRED');
+    expect(invoke([...args, '--kb', 'missing'], 2).error.code).toBe('UNKNOWN_KB');
+  }
+});
+
+it('keeps reads, writes, hashes and search results scoped to the named KB', () => {
+  const other = join(temp, 'work');
+  invoke(['init', other, '--git']);
+  invoke(['add', 'work', other]);
+  expect(invoke(['list']).knowledge_bases.map((kb: { name: string }) => kb.name)).toEqual(['personal', 'work']);
+  const input = join(temp, 'input.md');
+  for (const name of ['personal', 'work']) {
+    writeFileSync(input, `---\ntype: Reference\n---\nsharedmarker ${name}marker\n`);
+    invoke(['create', '--kb', name, '--path', 'topic', '--from-file', input]);
+  }
+  const personal = invoke(['get', 'topic']);
+  const work = invoke(['get', 'topic', '--kb', 'work']);
+  expect(work.hash).not.toBe(personal.hash);
+  expect(work.content).not.toContain('personalmarker');
+  writeFileSync(input, work.content + 'updatedmarker\n');
+  expect(invoke(['update', '--kb', 'work', '--path', 'topic', '--from-file', input, '--expect-hash', personal.hash], 5).error.code).toBe('HASH_CONFLICT');
+  invoke(['update', '--kb', 'work', '--path', 'topic', '--from-file', input, '--expect-hash', work.hash]);
+  expect(invoke(['get', 'topic']).hash).toBe(personal.hash);
+  for (const name of ['personal', 'work']) {
+    const result = invoke(['search', 'sharedmarker', '--kb', name]);
+    expect(result.scope).toEqual([name]);
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0].kb).toBe(name);
+    expect(result.results[0].snippet).toContain(`${name}marker`);
+    expect(invoke(['lint', '--kb', name]).valid).toBe(true);
+  }
+  expect(invoke(['search', 'updatedmarker']).results).toEqual([]);
+  invoke(['remove', 'personal']);
+  expect(invoke(['info', '--kb', 'work']).name).toBe('work');
+  expect(existsSync(join(root, 'topic.md'))).toBe(true);
+  expect(invoke(['get', 'topic'], 2).error.code).toBe('UNKNOWN_KB');
 });

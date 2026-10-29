@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { Command, CommanderError, Option } from 'commander';
 import { AkbError, fileError } from './errors.js';
-import { configPath, register, selected, unregister } from './config.js';
+import { configPath, loadConfig, register, selected, unregister } from './config.js';
 import { initialize, createConcept, getConcept, lintBundle, updateConcept } from './core/concept.js';
 import { readUtf8 } from './core/bundle.js';
 import { search } from './retrieval/search.js';
@@ -10,7 +10,7 @@ import { git, run } from './process.js';
 
 const program = new Command().name('akb').version('0.1.0').description('Local-first OKF knowledge tools');
 program.addOption(new Option('--format <format>', 'output format').choices(['text', 'json']).default('text'));
-program.option('--kb <name>', 'registered KB name');
+program.option('--kb <name>', 'registered KB name; required for KB-scoped commands');
 program.exitOverride().configureOutput({ writeErr: () => {} });
 const json = () => program.optsWithGlobals().format === 'json' || process.argv.includes('--format=json') ||
   process.argv.some((arg, index) => arg === '--format' && process.argv[index + 1] === 'json');
@@ -26,9 +26,10 @@ function command(name: string, description: string): Command { return program.co
 const kb = (cmd: Command) => selected(cmd.optsWithGlobals().kb as string | undefined);
 
 command('init <path>', 'Initialize an OKF Bundle').option('--git', 'initialize a Git repository').action((path, options) => output(initialize(path, !!options.git)));
-command('add <name> <path>', 'Register the single local KB').action((name, path) => output(register(name, path)));
+command('add <name> <path>', 'Register a local KB by name').action((name, path) => output(register(name, path)));
+command('list', 'List registered KB names and paths').action(() => output({ knowledge_bases: loadConfig().knowledge_bases }));
 command('remove <name>', 'Unregister without deleting knowledge').action(name => output(unregister(name)));
-command('info', 'Inspect the registered KB').action((_, cmd: Command) => {
+command('info', 'Inspect the explicitly selected KB').action((_, cmd: Command) => {
   const { config, name, root } = kb(cmd);
   const dependencies = Object.fromEntries(['git', 'rg', 'qmd'].map(tool => {
     try { return [tool, { available: true, version: run(tool, ['--version']).trim().split('\n')[0] }]; }

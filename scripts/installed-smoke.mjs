@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir, arch, platform } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { parse, stringify } from 'yaml';
@@ -17,8 +17,17 @@ function run(command, args) {
   assert.equal(result.status, 0, result.stderr || result.stdout);
   return result.stdout;
 }
-function akb(...args) { return JSON.parse(run(process.execPath, [cli, ...args, '--format', 'json'])); }
+function akb(...args) { return JSON.parse(run(process.execPath, [cli, '--kb', 'smoke', ...args, '--format', 'json'])); }
 try {
+  const skills = join(dirname(dirname(realpathSync(cli))), 'skills');
+  assert.deepEqual(readdirSync(skills).sort(), ['akb-ingest', 'akb-search']);
+  for (const name of ['akb-ingest', 'akb-search']) {
+    const content = readFileSync(join(skills, name, 'SKILL.md'), 'utf8');
+    const front = /^---\n([\s\S]*?)\n---\n/.exec(content);
+    assert.ok(front, `Missing Skill Frontmatter: ${name}`);
+    assert.equal(parse(front[1]).name, name);
+  }
+  report.checks.push('packaged_skills');
   report.git = run('git', ['--version']).trim();
   report.ripgrep = run('rg', ['--version']).split('\n')[0];
   report.qmd = run('qmd', ['--version']).trim();
@@ -26,6 +35,13 @@ try {
   akb('init', join(temp, 'kb'), '--git');
   akb('add', 'smoke', join(temp, 'kb'));
   report.checks.push('init', 'register');
+  akb('init', join(temp, 'second-kb'), '--git');
+  akb('add', 'second', join(temp, 'second-kb'));
+  assert.deepEqual(akb('list').knowledge_bases.map(kb => kb.name), ['smoke', 'second']);
+  const missing = spawnSync(process.execPath, [cli, 'get', 'topic', '--format', 'json'], { env, encoding: 'utf8', timeout: 30_000 });
+  assert.equal(missing.status, 2);
+  assert.equal(JSON.parse(missing.stdout).error.code, 'KB_REQUIRED');
+  report.checks.push('multi_kb_registry', 'explicit_kb_required');
   const input = join(temp, 'input.md');
   writeFileSync(input, '---\ntype: Reference\ntitle: Linux package smoke\n---\nPackage vacuum originalmarker.\n');
   akb('create', '--path', 'topic', '--from-file', input);
@@ -59,6 +75,7 @@ try {
   report.checks.push('ripgrep_search', 'provider_switch');
   akb('remove', 'smoke');
   assert.ok(existsSync(join(temp, 'kb', 'topic.md')));
+  assert.deepEqual(akb('list').knowledge_bases.map(kb => kb.name), ['second']);
   report.checks.push('unregister_preserves_files');
   report.passed = true;
 } catch (error) {

@@ -11,8 +11,8 @@ import type { Config } from '../src/config.js';
 import { run } from '../src/process.js';
 
 let temp: string, root: string;
-const rgConfig: Config = { version: 1, retrieval: { provider: 'ripgrep', fallback: 'none' } };
-const qmdConfig: Config = { version: 1, retrieval: { provider: 'qmd', fallback: 'ripgrep' } };
+const rgConfig: Config = { version: 2, knowledge_bases: [], retrieval: { provider: 'ripgrep', fallback: 'none' } };
+const qmdConfig: Config = { version: 2, knowledge_bases: [], retrieval: { provider: 'qmd', fallback: 'ripgrep' } };
 function page(body: string, title = 'Reference') { return `---\ntype: Reference\ntitle: ${title}\n---\n${body}\n`; }
 beforeEach(() => {
   temp = mkdtempSync(join(tmpdir(), 'akb-search-')); root = join(temp, 'kb');
@@ -91,15 +91,34 @@ it('rejects unexpected QMD schemas and collections', () => {
 });
 
 describe.skipIf(!process.env.AKB_TEST_QMD)('real QMD 2.8.3 (opt in)', () => {
+  it('keeps QMD and rg results isolated between KB roots with identical Concept paths', () => {
+    const other = initialize(join(temp, 'second-kb'), true).path;
+    createConcept(root, 'shared', page('scopeprobe firstonly'));
+    createConcept(other, 'shared', page('scopeprobe secondonly'));
+    const config: Config = { version: 2, knowledge_bases: [], retrieval: { provider: 'qmd', fallback: 'none' } };
+    for (const provider of ['qmd', 'ripgrep'] as const) {
+      const scoped = { ...config, retrieval: { provider, fallback: 'none' as const } };
+      for (const [path, name, own, foreign] of [[root, 'first', 'firstonly', 'secondonly'], [other, 'second', 'secondonly', 'firstonly']]) {
+        const found = search(path!, name!, scoped, 'scopeprobe');
+        expect(found.provider).toBe(provider);
+        expect(found.degraded).toBe(false);
+        expect(found.scope).toEqual([name]);
+        expect(found.results).toHaveLength(1);
+        expect(found.results[0]!.snippet).toContain(own);
+        expect(found.results[0]!.snippet).not.toContain(foreign);
+        expect(search(path!, name!, scoped, foreign!).results).toEqual([]);
+      }
+    }
+  }, 60_000);
   it('indexes and searches actual files through the isolated adapter', () => {
     qmdIndex(root, 'setup');
-    const config: Config = { version: 1, retrieval: { provider: 'qmd', fallback: 'none' } };
+    const config: Config = { version: 2, knowledge_bases: [], retrieval: { provider: 'qmd', fallback: 'none' } };
     const result = search(root, 'personal', config, 'vacuum');
     expect(result.provider).toBe('qmd');
     expect(result.results.some(x => x.path === 'database/vacuum.md')).toBe(true);
   }, 60_000);
   it('refreshes external edits and deletions, returns empty hits and supports mixed-language terms', () => {
-    const config: Config = { version: 1, retrieval: { provider: 'qmd', fallback: 'none' } };
+    const config: Config = { version: 2, knowledge_bases: [], retrieval: { provider: 'qmd', fallback: 'none' } };
     expect(search(root, 'personal', config, 'vacuum').results).toHaveLength(1);
     writeFileSync(join(root, 'database', 'vacuum.md'), page('数据库 VACUUM replication freshmarker.', '新标题'));
     const updated = search(root, 'personal', config, 'freshmarker').results;
@@ -113,7 +132,7 @@ describe.skipIf(!process.env.AKB_TEST_QMD)('real QMD 2.8.3 (opt in)', () => {
   it('returns literal Unicode, space, case and punctuation filenames', () => {
     const id = 'research/中文 UPPER note%20#question?';
     createConcept(root, id, page('uniquepathmarker confirms the original filename.'));
-    const config: Config = { version: 1, retrieval: { provider: 'qmd', fallback: 'none' } };
+    const config: Config = { version: 2, knowledge_bases: [], retrieval: { provider: 'qmd', fallback: 'none' } };
     expect(search(root, 'personal', config, 'uniquepathmarker').results[0]!.path).toBe(`${id}.md`);
   }, 60_000);
 });

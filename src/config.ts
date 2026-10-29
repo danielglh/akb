@@ -6,26 +6,33 @@ import { AkbError, fileError } from './errors.js';
 import { bundleRoot, expand, withLock } from './core/bundle.js';
 
 export type Provider = 'qmd' | 'ripgrep';
+interface KnowledgeBase { name: string; path: string }
 export interface Config {
-  version: 1;
-  knowledge_base?: { name: string; path: string };
+  version: 2;
+  knowledge_bases: KnowledgeBase[];
   retrieval: { provider: Provider; fallback: 'ripgrep' | 'none' };
 }
 export const configPath = (): string => join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'akb', 'config.yaml');
 
 export function loadConfig(): Config {
   const path = configPath();
-  if (!existsSync(path)) return { version: 1, retrieval: { provider: 'qmd', fallback: 'ripgrep' } };
+  if (!existsSync(path)) return { version: 2, knowledge_bases: [], retrieval: { provider: 'qmd', fallback: 'ripgrep' } };
   try {
     const doc = parseDocument(readFileSync(path, 'utf8'), { uniqueKeys: true });
     if (doc.errors.length) throw new Error();
-    const c = doc.toJS({ maxAliasCount: 50 }) as Config;
-    if (!c || c.version !== 1 || !['qmd', 'ripgrep'].includes(c.retrieval?.provider) ||
+    const c = doc.toJS({ maxAliasCount: 50 });
+    if (!c || ![1, 2].includes(c.version) || !['qmd', 'ripgrep'].includes(c.retrieval?.provider) ||
         !['ripgrep', 'none'].includes(c.retrieval?.fallback) ||
-        (c.knowledge_base && (typeof c.knowledge_base.path !== 'string' || !c.knowledge_base.path ||
-          typeof c.knowledge_base.name !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(c.knowledge_base.name)))) throw new Error();
-    return c;
-  } catch { throw new AkbError('INVALID_CONFIG', 'Invalid AKB config. Check version, knowledge_base and retrieval settings.', 2); }
+        (c.version === 1 && c.knowledge_bases !== undefined) ||
+        (c.version === 2 && c.knowledge_base !== undefined)) throw new Error();
+    const entries: unknown = c.version === 1 ? (c.knowledge_base === undefined ? [] : [c.knowledge_base]) : c.knowledge_bases;
+    if (!Array.isArray(entries) || !entries.every((kb: unknown): kb is KnowledgeBase => {
+      if (!kb || typeof kb !== 'object' || Array.isArray(kb)) return false;
+      const entry = kb as Record<string, unknown>;
+      return typeof entry.name === 'string' && /^[a-z0-9][a-z0-9-]*$/.test(entry.name) && typeof entry.path === 'string' && !!entry.path;
+    }) || new Set(entries.map(kb => kb.name)).size !== entries.length) throw new Error();
+    return { version: 2, knowledge_bases: entries, retrieval: c.retrieval };
+  } catch { throw new AkbError('INVALID_CONFIG', 'Invalid AKB config. Check version, knowledge_bases and retrieval settings.', 2); }
 }
 
 function saveConfig(config: Config): void {
@@ -42,8 +49,8 @@ export function register(name: string, path: string): Config {
   const root = bundleRoot(expand(path));
   return withLock(configPath(), 'config', () => {
     const config = loadConfig();
-    if (config.knowledge_base) throw new AkbError('KB_ALREADY_REGISTERED', 'Unregister the existing KB before registering another.', 2);
-    config.knowledge_base = { name, path: root };
+    if (config.knowledge_bases.some(kb => kb.name === name)) throw new AkbError('KB_ALREADY_REGISTERED', 'KB name is already registered; choose another name or unregister it first.', 2);
+    config.knowledge_bases.push({ name, path: root });
     saveConfig(config);
     return config;
   });
@@ -52,17 +59,18 @@ export function register(name: string, path: string): Config {
 export function unregister(name: string): { removed: string } {
   return withLock(configPath(), 'config', () => {
     const c = loadConfig();
-    if (c.knowledge_base?.name !== name) throw new AkbError('UNKNOWN_KB', 'Requested KB is not registered.', 2);
-    delete c.knowledge_base;
+    if (!c.knowledge_bases.some(kb => kb.name === name)) throw new AkbError('UNKNOWN_KB', 'Requested KB is not registered.', 2);
+    c.knowledge_bases = c.knowledge_bases.filter(kb => kb.name !== name);
     saveConfig(c);
     return { removed: name };
   });
 }
 
 export function selected(name?: string): { config: Config; name: string; root: string } {
+  if (!name) throw new AkbError('KB_REQUIRED', 'Specify a registered KB with --kb NAME. Use akb list to see registered names.', 2);
   const config = loadConfig();
-  const kb = config.knowledge_base;
-  if (!kb || (name && kb.name !== name)) throw new AkbError('UNKNOWN_KB', 'Requested KB is not registered. Use akb add.', 2);
+  const kb = config.knowledge_bases.find(kb => kb.name === name);
+  if (!kb) throw new AkbError('UNKNOWN_KB', 'Requested KB is not registered. Use akb list or akb add.', 2);
   const root = bundleRoot(kb.path);
   return { config, name: kb.name, root };
 }

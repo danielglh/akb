@@ -2,7 +2,7 @@
 
 Local-first knowledge tools for agents: **Git + Markdown + OKF + replaceable retrieval**.
 
-MVP **0.1.0** provides a single-KB CLI, safe OKF Concept writes, replaceable QMD / rg keyword retrieval, remark/GFM link checks, and two Agent Skills. The full automated and independent Agent evaluations are recorded in [MVP validation](docs/mvp-validation.md).
+AKB provides a multi-KB registry with explicit selection, safe OKF Concept writes, replaceable QMD / rg keyword retrieval, remark/GFM link checks, and two Agent Skills. Every KB-scoped command requires `--kb NAME`; there is no default KB. Historical MVP evaluations and subsequent verification are recorded in [MVP validation](docs/mvp-validation.md).
 
 ## Run locally
 
@@ -34,7 +34,7 @@ For an isolated trial, set `XDG_CONFIG_HOME` and `XDG_CACHE_HOME` to temporary d
 ```sh
 akb init ./my-kb --git
 akb add personal ./my-kb
-akb info --format json
+akb info --kb personal --format json
 ```
 
 Write a candidate to a temporary file, for example `/tmp/akb-concept.md`:
@@ -58,18 +58,18 @@ For this fictional service, retry transient failures three times at most.[^suppl
 ```
 
 ```sh
-akb create --path operations/retries --from-file /tmp/akb-concept.md --dry-run --format json
-akb create --path operations/retries --from-file /tmp/akb-concept.md --format json
-akb get operations/retries --format json
-akb search "retry transient" --format json
-akb lint --format json
+akb create --kb personal --path operations/retries --from-file /tmp/akb-concept.md --dry-run --format json
+akb create --kb personal --path operations/retries --from-file /tmp/akb-concept.md --format json
+akb get --kb personal operations/retries --format json
+akb search --kb personal "retry transient" --format json
+akb lint --kb personal --format json
 ```
 
 Edit a copy of the Concept outside the KB, then update using the exact `hash` returned by `get`:
 
 ```sh
-akb update --path operations/retries --from-file /tmp/akb-updated.md --expect-hash HASH_FROM_GET --dry-run --format json
-akb update --path operations/retries --from-file /tmp/akb-updated.md --expect-hash HASH_FROM_GET --format json
+akb update --kb personal --path operations/retries --from-file /tmp/akb-updated.md --expect-hash HASH_FROM_GET --dry-run --format json
+akb update --kb personal --path operations/retries --from-file /tmp/akb-updated.md --expect-hash HASH_FROM_GET --format json
 ```
 
 A stale hash is rejected. Re-read and merge rather than forcing the update. `create` never overwrites an existing file. All knowledge writes use an exclusive AKB lock, same-directory temporary files and atomic publication/replacement. Locks live under the AKB user cache, outside the KB.
@@ -78,19 +78,33 @@ AKB never stages or commits. Review `git -C ./my-kb status` and `git -C ./my-kb 
 
 ## Retrieval configuration
 
-The registry supports **one** KB. Default location: `~/.config/akb/config.yaml` (honors `XDG_CONFIG_HOME`). `akb add` registers; `akb remove personal` unregisters without deleting files.
+The registry supports multiple named KBs. Its location is `~/.config/akb/config.yaml` (honors `XDG_CONFIG_HOME`). `akb add` registers; `akb list` lists names and paths; `akb remove NAME` unregisters only that name without deleting files. Names must be unique.
 
 ```yaml
-version: 1
-knowledge_base:
-  name: personal
-  path: /absolute/path/to/my-kb
+version: 2
+knowledge_bases:
+  - name: personal
+    path: /absolute/path/to/my-kb
+  - name: work
+    path: /absolute/path/to/work-kb
 retrieval:
   provider: qmd
   fallback: ripgrep
 ```
 
-Set `provider: ripgrep` to use rg directly; `fallback: none` disables fallback. Content operations default to the one registered KB. An explicit `--kb NAME` must match it.
+Set `provider: ripgrep` to use rg directly; `fallback: none` disables fallback. These retrieval settings apply to all registered KBs; QMD indexes and locks remain isolated by each KB's canonical path.
+
+Every `info`, `get`, `create`, `update`, `search`, `lint` and `search-index setup|refresh|status` command requires `--kb NAME`, even when only one KB is registered. Missing names return `KB_REQUIRED`; unregistered names return `UNKNOWN_KB`. Both exit with code 2 before reading or writing KB content. There is no default, current-directory selection, or implicit fallback to another KB.
+
+```sh
+akb add personal /absolute/path/to/my-kb
+akb add work /absolute/path/to/work-kb
+akb list --format json
+akb search "retry" --kb personal --format json
+akb search "retry" --kb work --format json
+```
+
+Existing version-1 configs are read without modification and their sole entry is retained. The next `add` or `remove` writes version 2 atomically under the existing config lock. Commands and Agent workflows that previously omitted `--kb` must now provide it. Older CLI versions do not understand version 2; update other installations sharing that config before changing the registry. Each search targets one named KB; combined cross-KB search is not implemented.
 
 `akb search` accepts `--limit 1..100` and only `--mode keyword`. rg searches literal whitespace-separated terms, requiring all terms in the same page. It ranks by matching body-line count and then path. It supports Chinese text but does not perform Chinese word segmentation or semantic matching. QMD and rg rankings and scores are not comparable.
 
@@ -104,13 +118,13 @@ After installing the target QMD version in an authorized environment:
 
 ```sh
 npm install --global @tobilu/qmd@2.8.3
-akb search-index setup
-akb search-index status
-akb search "retry transient" --format json
+akb search-index setup --kb personal
+akb search-index status --kb personal
+akb search --kb personal "retry transient" --format json
 npm run test:qmd
 ```
 
-The adapter generates one isolated collection/config/cache under the AKB cache, always selects an explicit named index, refreshes before keyword searches, and disables update hooks and inherited project trust flags. It does not read the SQLite schema or require embedding models. `search-index setup|refresh|status` returns `not_required` for rg.
+For each KB, the adapter generates an isolated collection/config/cache under the AKB cache, always selects an explicit named index, refreshes before keyword searches, and disables update hooks and inherited project trust flags. It does not read the SQLite schema or require embedding models. `search-index setup|refresh|status` returns `not_required` for rg.
 
 Do not treat the adapter as a security boundary for an Agent that can access your filesystem. Separate filesystem identities/environments are required for access isolation.
 
@@ -144,6 +158,6 @@ All operations support `--format json`: stdout is one versioned result or error 
 - External editors do not honor AKB locks. Avoid parallel external writes; there are no multi-file transactions or snapshot-consistent searches.
 - Markdown inputs are limited to 4 MiB, child output to 8 MiB, normal child execution to 15 seconds and QMD to 30 seconds. Large bundles may require a deliberate later change.
 - Bundle reads/scans reject symlinks; Concept paths reject reserved files, hidden/control directories and casing collisions. QMD config/cache are user-owned trusted locations.
-- No multi-KB/team review mode, auto-navigation, advanced retrieval, batch maintenance, database, server or extra LLM key.
+- No combined cross-KB search, team review mode, auto-navigation, advanced retrieval, batch maintenance, database, server or extra LLM key.
 
 Design: [AKB_DESIGN.md](AKB_DESIGN.md). Format: [OKF v0.2](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md). Retrieval implementation: [QMD](https://github.com/tobi/qmd). Skill format: [Agent Skills](https://agentskills.io/specification).
