@@ -2,6 +2,8 @@
 
 框架复用 `tests/fixtures/ingest/cases.json` 的七个案例，准备真实 CLI 可操作的知识库，再独立检查 Agent 留下的结果。无需新增依赖、模型 API Key 或全局安装。评分器只检查可观测断言；报告的 `automated_passed` 不等于语义评审通过。
 
+当前示例与 fixtures 使用固定的 `knowledge/`、`source/` 目录，Concept ID 包含目录前缀。旧布局的待执行 Eval 应重新准备新运行目录；不会自动改写历史证据或搬动已有案例文件。
+
 ## 准备
 
 需要源码 checkout、已安装的项目依赖、Node 24–26、Git 和 rg。在源码项目根目录运行（npm 安装包不包含此开发工具）：
@@ -30,7 +32,7 @@ Agent 最后写入该案例的 `response.json`，例如：
   "decision": "Update",
   "reason": "新增 request ID 要求，保留旧版重试规则和来源。",
   "citation": {
-    "path": "engineering/atlas-retries.md",
+    "path": "knowledge/engineering/atlas-retries.md",
     "line": 29,
     "excerpt": "Include a request ID in retry diagnostics.[^supplied]"
   }

@@ -2,6 +2,20 @@
 
 日期：2026-10-26。范围为 AKB_DESIGN.md 定义的单 KB MVP：Git + Markdown + OKF、可替换 QMD / rg 检索、CLI 和两个 Skill。
 
+## 知识目录扫描范围修复（2026-10-30）
+
+目录命名随后统一由 `source-text/` 改为 `source/`，代码、示例、fixtures、文档和 Skill 引用同步更名。重命名后本地 59 项通过、5 项 QMD 跳过；隔离 Linux 的真实 QMD 测试 64 项通过、零跳过。下述原安装版与实际 KB 的只读核对发生在目录重命名前；已有用户 KB 和安装版尚未自动迁移到新名称。
+
+固定内容目录为 `knowledge/` 和 `source/`。lint 只校验两个目录中的 Markdown 以及根 `index.md` / `log.md`；搜索只索引两个目录下的非保留 Concept。仓库说明文件和其他目录不进入扫描，不为 README / INSTALL / AGENTS 补 Frontmatter。知识目录内的缺失 Frontmatter、损坏 YAML 和知识页的链接/来源错误仍正常报告。
+
+回归测试在原实现上确认失败：普通说明文件导致 lint `valid: false`，rg 搜索命中说明文件后抛 `INVALID_FRONTMATTER`。修复后相同回归测试通过；同时验证说明文件字节不变、真实知识格式错误仍被报告、越界/Symlink 限制保留、过期检索候选被过滤，以及真实 QMD 在限制返回数量前排除知识目录外的文件。
+
+`init` 创建两个内容目录、各自导航索引及根索引，使空目录可随 Git 保存，并拒绝覆盖现有文件。CLI Concept 读写限于两个内容目录；示例、Eval fixtures、安装包 smoke 和摄取 Skill 同步采用带目录前缀的 ID。旧布局必须由用户明确迁移并更新引用，不自动移动用户文件；没有任一内容目录时扫描明确报错。历史 Agent 验收路径未改写，不表示已对新布局重跑 Agent 语义评测。
+
+macOS / Node 26 的 `npm test`：**59 项通过、5 项真实 QMD 测试按入口跳过**。Linux arm64 / Debian 12 / Node 24.22.1 / QMD 2.8.3 的 `npm run test:qmd`：**8 个测试文件、64 项通过、失败 0、跳过 0**；打包安装后的 **16 项 smoke 检查通过**。使用此前已验证的 Linux 基础镜像，清空旧项目文件后复制当前源码、保留原 Linux 依赖；锁文件未变化。本次未做全新基础镜像依赖安装。工作区证据目录：`artifacts/linux-validation/lint-scope-final.RMdCpz/`，含 Dockerfile、镜像元数据、构建/运行日志、`tests.json`、`smoke.json`。
+
+只读核对现有已登记 KB：原安装版有 3 项说明文件格式错误和 14 项质量警告；修复版返回有效，说明文件诊断为 0，保留原有 14 项质量警告。更新本机安装后再次验证，148 个现有 Markdown 文件及注册配置 Hash 均未改变。本机 QMD 可执行文件不可用（`DEPENDENCY_MISSING`），实际搜索按已有配置降级至 rg 并成功；真实 QMD 的通过结论限于上述 Linux 验证。知识及来源页不被自动改写或迁移。
+
 ## 多 KB 与显式选库验证（2026-10-29）
 
 当前已支持同时登记多个命名 KB，新增 `akb list`。所有库级命令（包括 info、读写、检索、Lint 和索引操作）必须显式提供已注册的 `--kb NAME`；即使只登记一个库也不隐式选择。缺失名称返回 `KB_REQUIRED`，未知名称返回 `UNKNOWN_KB`，均退出 2。无默认库、无当前目录推断，不提供跨库聚合搜索。

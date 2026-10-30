@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { AkbError, fileError } from '../errors.js';
 import { git, run } from '../process.js';
-import { bundleRoot, conceptPath, expand, hash, markdownFiles, readUtf8, reserved, safePath, withLock } from './bundle.js';
+import { bundleRoot, conceptPath, contentDirectories, expand, hash, markdownFiles, readUtf8, reserved, safePath, withLock } from './bundle.js';
 import { checkedPage, inspectMarkdown, reservedDiagnostics } from './validation.js';
 import { linkDiagnostics } from './links.js';
 
@@ -19,8 +19,21 @@ export function initialize(path: string, initGit: boolean): { path: string; crea
     const root = bundleRoot(expanded);
     return withLock(root, 'write', () => {
       const index = safePath(root, 'index.md');
-      writeFileSync(index, '---\nokf_version: "0.2"\n---\n# Knowledge Base\n\n', { flag: 'wx', mode: 0o644 });
-      return { path: root, created: ['index.md'] };
+      if (existsSync(index)) throw new AkbError('ALREADY_EXISTS', 'index.md already exists; initialization does not overwrite it.', 5);
+      const created = ['index.md'];
+      for (const dir of contentDirectories) {
+        const target = safePath(root, dir);
+        if (existsSync(target)) {
+          if (!lstatSync(target).isDirectory()) throw new AkbError('INVALID_BUNDLE', `${dir} must be a directory.`, 3);
+        } else { mkdirSync(target); created.push(`${dir}/`); }
+        const navigation = safePath(root, `${dir}/index.md`);
+        if (!existsSync(navigation)) {
+          writeFileSync(navigation, `# ${dir}\n`, { flag: 'wx', mode: 0o644 });
+          created.push(`${dir}/index.md`);
+        }
+      }
+      writeFileSync(index, '---\nokf_version: "0.2"\n---\n# Knowledge Base\n\n- [Knowledge](knowledge/)\n- [Source text](source/)\n', { flag: 'wx', mode: 0o644 });
+      return { path: root, created };
     });
   } catch (error) { return fileError(error); }
 }

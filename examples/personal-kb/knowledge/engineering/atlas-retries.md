@@ -6,7 +6,7 @@ tags: [atlas, api, retry]
 status: stable
 sources:
   - id: policy-v1
-    resource: ../references/atlas-policy.txt
+    resource: ../../source/atlas-policy.txt
     title: Synthetic Atlas policy v1
 ---
 # Atlas API 重试策略

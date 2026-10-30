@@ -1,7 +1,7 @@
 # Agent Knowledge Base — 技术设计方案
 
-**Version:** 1.2 Draft\
-**Date:** 2026-10-29\
+**Version:** 1.3 Draft\
+**Date:** 2026-10-30\
 **Status:** MVP 0.1.0 complete; validated on macOS and Linux arm64 (see docs/mvp-validation.md)  
 **Working Name:** `akb` (Agent Knowledge Base)
 
@@ -111,20 +111,26 @@ Retrieval contract -> QMD adapter or rg adapter
 
 ### 3.1 One Repository, One Bundle
 
-MVP 注册一个本地 Git Repository，其根目录也是 OKF Bundle 根目录。例如：
+每个注册的本地 Git Repository 根目录也是 OKF Bundle 根目录。AKB 定义固定内容目录：
 
 ```text
 ~/knowledge/personal-kb/
 ├── index.md
-├── engineering/
-│   └── postgresql-vacuum.md
-└── research/
-    └── agent-memory.md
+├── knowledge/
+│   ├── knowledge/engineering/postgresql-vacuum.md
+│   └── research/agent-memory.md
+├── source/
+│   └── policy-v1.md
+├── README.md
+├── INSTALL.md
+└── AGENTS.md
 ```
 
-不硬编码分类，也不支持仓库内多个 Bundle。`index.md` 是导航入口，首版初始化根索引，随后人工维护，不自动覆盖。
+`knowledge/` 保存整理后的知识页，`source/` 保存可引用的 OKF 来源页与原始附件。两者内部可自由分类；不支持仓库内多个 Bundle。`init` 创建这两个目录、各自的导航索引和根索引，保证空内容目录也可进入 Git，不覆盖已有文件。Concept ID 是包含上述目录前缀的 Bundle-relative 路径（不含 `.md`）。
 
-仓库内非保留 `.md` 文件应是 OKF Concept。初始化说明放在 CLI 输出或项目文档，避免在 Bundle 内生成没有 Frontmatter 的普通 README。
+lint 的内容范围只限这两个目录中的 Markdown，外加根 `index.md` / `log.md` 的专用导航校验；搜索只处理两个目录中的非保留 Concept。README、INSTALL、AGENTS 等仓库说明放在知识区之外，保持普通 Markdown，不要求 Frontmatter，也不检查其示例链接。其他目录同样不进入知识扫描。知识页里的链接和来源仍检查真实目标的路径边界、Symlink 与存在性；知识区内缺少 Frontmatter 或损坏 YAML 仍报错。
+
+CLI Concept 读写只允许 `knowledge/` 或 `source/` 下的非保留页面，防止写出检索不到的知识或覆盖说明文件。两目录都缺失的旧布局在扫描时明确报 `INVALID_BUNDLE`。迁移需要用户明确移动真实知识页并更新链接、来源路径和 ID，AKB 不自动搬动任何文件；留在范围外的文件不参与扫描。非 Markdown 原始附件可以放在 `source/`，该目录的 Markdown 来源页仍按 OKF 校验。
 
 ### 3.2 Configuration
 
@@ -391,8 +397,8 @@ akb search "postgres vacuum" --kb personal --format json
   "results": [
     {
       "kb": "personal",
-      "concept_id": "engineering/postgresql-vacuum",
-      "path": "engineering/postgresql-vacuum.md",
+      "concept_id": "knowledge/engineering/postgresql-vacuum",
+      "path": "knowledge/engineering/postgresql-vacuum.md",
       "title": "PostgreSQL VACUUM",
       "line": 12,
       "snippet": "VACUUM can affect replication...",
@@ -655,7 +661,7 @@ akb remove personal
 
 ```bash
 akb search "postgres vacuum" --kb personal --limit 10 --format json
-akb get engineering/postgresql-vacuum --kb personal --format json
+akb get knowledge/engineering/postgresql-vacuum --kb personal --format json
 ```
 
 `get` 返回 `kb`、`concept_id`、`path`、`content`、归一化 Metadata 及原始字节 `hash`。路径仅接受 Bundle-relative Concept ID；知识链接的 `/` 根路径语义由链接解析器单独处理。
@@ -664,15 +670,15 @@ akb get engineering/postgresql-vacuum --kb personal --format json
 
 ```bash
 akb create --kb personal \
-  --path engineering/postgresql-vacuum \
+  --path knowledge/engineering/postgresql-vacuum \
   --from-file /tmp/new-concept.md --dry-run
 
 akb create --kb personal \
-  --path engineering/postgresql-vacuum \
+  --path knowledge/engineering/postgresql-vacuum \
   --from-file /tmp/new-concept.md
 
 akb update --kb personal \
-  --path engineering/postgresql-vacuum \
+  --path knowledge/engineering/postgresql-vacuum \
   --from-file /tmp/updated-concept.md \
   --expect-hash SHA256_VALUE --dry-run
 ```

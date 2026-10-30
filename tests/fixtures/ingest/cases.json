@@ -7,7 +7,7 @@
       "monthly"
     ],
     "query": "Boreal backup",
-    "suggested_id": "operations/boreal-backups"
+    "suggested_id": "knowledge/operations/boreal-backups"
   },
   {
     "input": "update.txt",
@@ -21,7 +21,7 @@
       "request ID"
     ],
     "query": "Atlas request ID",
-    "expected_id": "engineering/atlas-retries"
+    "expected_id": "knowledge/engineering/atlas-retries"
   },
   {
     "input": "duplicate.txt",
@@ -49,7 +49,7 @@
       "Create"
     ],
     "alternative_condition": "A linked, separately scoped v2 Concept is acceptable only if the existing v1 Concept stays unchanged and both versions remain explicit.",
-    "preserved_existing_id": "engineering/atlas-retries"
+    "preserved_existing_id": "knowledge/engineering/atlas-retries"
   },
   {
     "input": "insufficient.txt",

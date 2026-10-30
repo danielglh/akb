@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { stringify } from 'yaml';
 import { run } from '../process.js';
 import { AkbError } from '../errors.js';
-import { cacheRoot, hash, markdownFiles, withLock } from '../core/bundle.js';
+import { cacheRoot, contentDirectories, hash, markdownFiles, withLock } from '../core/bundle.js';
 import type { Candidate, Retriever, SearchRequest } from './interface.js';
 
 // Targeted CLI protocol; real binary compatibility must pass the opt-in integration test.
@@ -34,7 +34,7 @@ function configure(root: string): void {
   const { configDir } = context(root);
   const temp = join(configDir, `akb.${process.pid}.tmp`);
   writeFileSync(temp, stringify({ collections: { [collection]: {
-    path: root, pattern: '**/*.md', includeByDefault: false,
+    path: root, pattern: `{${contentDirectories.join(',')}}/**/*.md`, includeByDefault: false,
     ignore: ['**/.*', '**/.*/**', '**/node_modules/**', '**/dist/**', '**/build/**', '**/vendor/**', '**/coverage/**', '**/index.md', '**/log.md'],
   } } }), { mode: 0o600 });
   renameSync(temp, join(configDir, 'akb.yml'));

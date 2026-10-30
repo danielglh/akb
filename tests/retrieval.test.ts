@@ -17,31 +17,43 @@ function page(body: string, title = 'Reference') { return `---\ntype: Reference\
 beforeEach(() => {
   temp = mkdtempSync(join(tmpdir(), 'akb-search-')); root = join(temp, 'kb');
   process.env.XDG_CACHE_HOME = join(temp, 'cache'); initialize(root, true);
-  createConcept(root, 'database/vacuum', page('Postgres VACUUM affects replication lag.\nCheck replication health.', '数据库维护'));
-  createConcept(root, 'other', page('Postgres memory tuning.'));
+  createConcept(root, 'knowledge/database/vacuum', page('Postgres VACUUM affects replication lag.\nCheck replication health.', '数据库维护'));
+  createConcept(root, 'knowledge/other', page('Postgres memory tuning.'));
 });
 afterEach(() => rmSync(temp, { recursive: true, force: true }));
 
 it('runs real rg, requires all terms, returns current body and line numbers', () => {
   const result = search(root, 'personal', rgConfig, 'vacuum REPLICATION');
-  expect(result.results.map(x => x.path)).toEqual(['database/vacuum.md']);
+  expect(result.results.map(x => x.path)).toEqual(['knowledge/database/vacuum.md']);
   expect(result.results[0]).toMatchObject({ title: '数据库维护', score: null, status: 'stable', line: 5 });
   expect(result.degraded).toBe(false);
   expect(search(root, 'personal', rgConfig, 'VACUUM memory').results).toEqual([]);
   expect(search(root, 'personal', rgConfig, '不存在').results).toEqual([]);
 });
+
+it('excludes repository prose from rg and filters stale out-of-scope provider candidates', () => {
+  mkdirSync(join(root, 'knowledge'), { recursive: true });
+  writeFileSync(join(root, 'knowledge/scoped.md'), page('contentscopeprobe knowledge.'));
+  for (const file of ['README.md', 'INSTALL.md', 'AGENTS.md'])
+    writeFileSync(join(root, file), '# Instructions\ncontentscopeprobe docsonlyprobe\n');
+  expect(search(root, 'personal', rgConfig, 'contentscopeprobe', 1).results.map(row => row.path)).toEqual(['knowledge/scoped.md']);
+  expect(search(root, 'personal', rgConfig, 'docsonlyprobe').results).toEqual([]);
+  const stale = { search: () => [{ path: 'README.md', score: 1 }, { path: 'knowledge/scoped.md', score: 0.8 }] };
+  expect(search(root, 'personal', qmdConfig, 'contentscopeprobe', 2, 'keyword', { qmd: stale, ripgrep }).results.map(row => row.path))
+    .toEqual(['knowledge/scoped.md']);
+});
 it('treats shell metacharacters and regex as literal query data', () => {
-  createConcept(root, 'special', page('Exact [a-z] $(touch NEVER) --help 中文。'));
-  expect(search(root, 'personal', rgConfig, '[a-z]').results.map(x => x.path)).toEqual(['special.md']);
-  expect(search(root, 'personal', rgConfig, '$(touch NEVER)').results.map(x => x.path)).toEqual(['special.md']);
-  expect(search(root, 'personal', rgConfig, '--help').results.map(x => x.path)).toEqual(['special.md']);
-  expect(search(root, 'personal', rgConfig, '中文').results.map(x => x.path)).toEqual(['special.md']);
+  createConcept(root, 'knowledge/special', page('Exact [a-z] $(touch NEVER) --help 中文。'));
+  expect(search(root, 'personal', rgConfig, '[a-z]').results.map(x => x.path)).toEqual(['knowledge/special.md']);
+  expect(search(root, 'personal', rgConfig, '$(touch NEVER)').results.map(x => x.path)).toEqual(['knowledge/special.md']);
+  expect(search(root, 'personal', rgConfig, '--help').results.map(x => x.path)).toEqual(['knowledge/special.md']);
+  expect(search(root, 'personal', rgConfig, '中文').results.map(x => x.path)).toEqual(['knowledge/special.md']);
 });
 it('returns newly updated content and deterministic ordering', () => {
-  const old = getConcept(root, 'other');
-  updateConcept(root, 'other', page('Postgres VACUUM replication.\nReplication.\nVACUUM.', 'Updated'), old.hash);
+  const old = getConcept(root, 'knowledge/other');
+  updateConcept(root, 'knowledge/other', page('Postgres VACUUM replication.\nReplication.\nVACUUM.', 'Updated'), old.hash);
   const results = search(root, 'personal', rgConfig, 'vacuum replication').results;
-  expect(results.map(x => x.path)).toEqual(['other.md', 'database/vacuum.md']);
+  expect(results.map(x => x.path)).toEqual(['knowledge/other.md', 'knowledge/database/vacuum.md']);
   expect(results[0]!.title).toBe('Updated');
 });
 it('marks QMD dependency failures as an explicit keyword fallback', () => {
@@ -73,8 +85,8 @@ it('does not fallback for invalid requests or unsafe paths', () => {
 });
 it('reads QMD candidate metadata and snippets from disk, never cached prose', () => {
   const adapter = { search: () => parseQmdResults(JSON.stringify([
-    { file: 'qmd://kb/database/vacuum.md', score: 0.7, snippet: 'OLD SECRET', title: 'OLD' },
-    { file: 'qmd://kb/deleted.md', score: 0.5 },
+    { file: 'qmd://kb/knowledge/database/vacuum.md', score: 0.7, snippet: 'OLD SECRET', title: 'OLD' },
+    { file: 'qmd://kb/knowledge/deleted.md', score: 0.5 },
   ])) };
   const result = search(root, 'personal', qmdConfig, 'vacuum', 10, 'keyword', { qmd: adapter, ripgrep });
   expect(result.results).toHaveLength(1);
@@ -85,16 +97,31 @@ it('rejects unexpected QMD schemas and collections', () => {
   expect(() => parseQmdResults('not json')).toThrow(/JSON/);
   expect(() => parseQmdResults('{}')).toThrow(/schema/);
   expect(() => parseQmdResults('[{"file":"qmd://personal/private.md"}]')).toThrow(/collection/);
-  expect(parseQmdResults('[{"file":"qmd://kb/database/vacuum.md?index=akb","score":0.7}]'))
-    .toEqual([{ path: 'database/vacuum.md', score: 0.7 }]);
+  expect(parseQmdResults('[{"file":"qmd://kb/knowledge/database/vacuum.md?index=akb","score":0.7}]'))
+    .toEqual([{ path: 'knowledge/database/vacuum.md', score: 0.7 }]);
   expect(() => parseQmdResults('[{"file":"qmd://kb/topic.md?index=other"}]')).toThrow(/collection/);
 });
 
 describe.skipIf(!process.env.AKB_TEST_QMD)('real QMD 2.8.3 (opt in)', () => {
+  it('indexes both content directories but excludes instructions before applying the result limit', () => {
+    mkdirSync(join(root, 'knowledge'), { recursive: true });
+    mkdirSync(join(root, 'source'), { recursive: true });
+    writeFileSync(join(root, 'knowledge/scoped.md'), page('contentscopeprobe knowledge.'));
+    writeFileSync(join(root, 'source/scoped.md'), page('contentscopeprobe source.'));
+    for (const file of ['README.md', 'INSTALL.md', 'AGENTS.md'])
+      writeFileSync(join(root, file), '# Instructions\n' + 'contentscopeprobe docsonlyprobe\n'.repeat(10));
+    const config: Config = { version: 2, knowledge_bases: [], retrieval: { provider: 'qmd', fallback: 'none' } };
+    const result = search(root, 'personal', config, 'contentscopeprobe');
+    expect(result.provider).toBe('qmd');
+    expect(result.degraded).toBe(false);
+    expect(result.results.map(row => row.path).sort()).toEqual(['knowledge/scoped.md', 'source/scoped.md']);
+    expect(search(root, 'personal', config, 'contentscopeprobe', 1).results).toHaveLength(1);
+    expect(search(root, 'personal', config, 'docsonlyprobe').results).toEqual([]);
+  }, 60_000);
   it('keeps QMD and rg results isolated between KB roots with identical Concept paths', () => {
     const other = initialize(join(temp, 'second-kb'), true).path;
-    createConcept(root, 'shared', page('scopeprobe firstonly'));
-    createConcept(other, 'shared', page('scopeprobe secondonly'));
+    createConcept(root, 'knowledge/shared', page('scopeprobe firstonly'));
+    createConcept(other, 'knowledge/shared', page('scopeprobe secondonly'));
     const config: Config = { version: 2, knowledge_bases: [], retrieval: { provider: 'qmd', fallback: 'none' } };
     for (const provider of ['qmd', 'ripgrep'] as const) {
       const scoped = { ...config, retrieval: { provider, fallback: 'none' as const } };
@@ -115,22 +142,22 @@ describe.skipIf(!process.env.AKB_TEST_QMD)('real QMD 2.8.3 (opt in)', () => {
     const config: Config = { version: 2, knowledge_bases: [], retrieval: { provider: 'qmd', fallback: 'none' } };
     const result = search(root, 'personal', config, 'vacuum');
     expect(result.provider).toBe('qmd');
-    expect(result.results.some(x => x.path === 'database/vacuum.md')).toBe(true);
+    expect(result.results.some(x => x.path === 'knowledge/database/vacuum.md')).toBe(true);
   }, 60_000);
   it('refreshes external edits and deletions, returns empty hits and supports mixed-language terms', () => {
     const config: Config = { version: 2, knowledge_bases: [], retrieval: { provider: 'qmd', fallback: 'none' } };
     expect(search(root, 'personal', config, 'vacuum').results).toHaveLength(1);
-    writeFileSync(join(root, 'database', 'vacuum.md'), page('数据库 VACUUM replication freshmarker.', '新标题'));
+    writeFileSync(join(root, 'knowledge', 'database', 'vacuum.md'), page('数据库 VACUUM replication freshmarker.', '新标题'));
     const updated = search(root, 'personal', config, 'freshmarker').results;
-    expect(updated[0]).toMatchObject({ path: 'database/vacuum.md', title: '新标题' });
+    expect(updated[0]).toMatchObject({ path: 'knowledge/database/vacuum.md', title: '新标题' });
     expect(updated[0]!.snippet).toContain('数据库');
-    expect(search(root, 'personal', config, '数据库 VACUUM').results[0]!.path).toBe('database/vacuum.md');
+    expect(search(root, 'personal', config, '数据库 VACUUM').results[0]!.path).toBe('knowledge/database/vacuum.md');
     expect(search(root, 'personal', config, 'nonexistentuniqueterm').results).toEqual([]);
-    unlinkSync(join(root, 'database', 'vacuum.md'));
+    unlinkSync(join(root, 'knowledge', 'database', 'vacuum.md'));
     expect(search(root, 'personal', config, 'freshmarker').results).toEqual([]);
   }, 60_000);
   it('returns literal Unicode, space, case and punctuation filenames', () => {
-    const id = 'research/中文 UPPER note%20#question?';
+    const id = 'knowledge/research/中文 UPPER note%20#question?';
     createConcept(root, id, page('uniquepathmarker confirms the original filename.'));
     const config: Config = { version: 2, knowledge_bases: [], retrieval: { provider: 'qmd', fallback: 'none' } };
     expect(search(root, 'personal', config, 'uniquepathmarker').results[0]!.path).toBe(`${id}.md`);

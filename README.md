@@ -27,6 +27,28 @@ Dependencies are pinned in `package-lock.json`: Commander 15.0.0, yaml 2.9.1, re
 
 To install the command after building, use `npm install --global .` in an environment where you authorize a global installation. Otherwise the examples work with `node /absolute/path/to/akb/dist/cli.js` in place of `akb`. No global installation or registration into your personal configuration was performed during development.
 
+## Knowledge-base layout and scan scope
+
+AKB defines two content directories per KB:
+
+```text
+my-kb/
+├── index.md                 # Bundle navigation
+├── knowledge/               # Curated OKF Concept pages
+├── source/             # Citable OKF source pages and source attachments
+├── README.md                # Ordinary repository documentation
+├── INSTALL.md
+└── AGENTS.md
+```
+
+`akb init` creates `knowledge/`, `source/` and their navigation indexes, plus the root `index.md`, without overwriting existing files. The indexes keep otherwise empty content directories in Git. Concept IDs include the directory prefix, for example `knowledge/operations/retries` or `source/policy-v1`.
+
+Lint validates Markdown under `knowledge/` and `source/`, including nested navigation/log files, plus root `index.md` / `log.md`. Search indexes only non-reserved Concept pages in those two directories. Root instructions and other directories are outside that scope, regardless of filename or Frontmatter. Their links and example snippets are not linted. Knowledge pages can still link to repository docs, attachments and local sources; referenced paths retain boundary/symlink checks.
+
+Malformed pages **inside** the content directories still fail validation; missing Frontmatter is not silently ignored. CLI Concept reads/writes outside those directories are rejected so repository documentation cannot be overwritten as a Concept.
+
+For an older KB with pages at paths such as `engineering/topic.md`, explicitly move the actual content into `knowledge/` (or source pages into `source/`), update relative links/source paths and Concept IDs, then rerun lint and refresh the index. AKB never moves user files automatically. Legacy `source-text/` must be explicitly renamed to `source/` with its path references updated; scans reject an unmigrated legacy source directory instead of silently omitting its pages. If neither content directory exists, lint/index scans report `INVALID_BUNDLE` instead of a misleading empty success. Files left outside the defined content directories are not scanned. Raw source attachments without the `.md` extension can stay in `source/`; Markdown source pages there must use OKF.
+
 ## A complete local write/read/search loop
 
 For an isolated trial, set `XDG_CONFIG_HOME` and `XDG_CACHE_HOME` to temporary directories before the commands. AKB otherwise uses the normal user XDG locations.
@@ -47,7 +69,7 @@ description: Synthetic retry policy for the local example.
 status: draft
 sources:
   - id: supplied-note
-    resource: notes/retry-policy.txt
+    resource: /source/retry-policy.txt
     title: User-supplied example note
 ---
 # Example retry policy
@@ -58,9 +80,9 @@ For this fictional service, retry transient failures three times at most.[^suppl
 ```
 
 ```sh
-akb create --kb personal --path operations/retries --from-file /tmp/akb-concept.md --dry-run --format json
-akb create --kb personal --path operations/retries --from-file /tmp/akb-concept.md --format json
-akb get --kb personal operations/retries --format json
+akb create --kb personal --path knowledge/operations/retries --from-file /tmp/akb-concept.md --dry-run --format json
+akb create --kb personal --path knowledge/operations/retries --from-file /tmp/akb-concept.md --format json
+akb get --kb personal knowledge/operations/retries --format json
 akb search --kb personal "retry transient" --format json
 akb lint --kb personal --format json
 ```
@@ -68,8 +90,8 @@ akb lint --kb personal --format json
 Edit a copy of the Concept outside the KB, then update using the exact `hash` returned by `get`:
 
 ```sh
-akb update --kb personal --path operations/retries --from-file /tmp/akb-updated.md --expect-hash HASH_FROM_GET --dry-run --format json
-akb update --kb personal --path operations/retries --from-file /tmp/akb-updated.md --expect-hash HASH_FROM_GET --format json
+akb update --kb personal --path knowledge/operations/retries --from-file /tmp/akb-updated.md --expect-hash HASH_FROM_GET --dry-run --format json
+akb update --kb personal --path knowledge/operations/retries --from-file /tmp/akb-updated.md --expect-hash HASH_FROM_GET --format json
 ```
 
 A stale hash is rejected. Re-read and merge rather than forcing the update. `create` never overwrites an existing file. All knowledge writes use an exclusive AKB lock, same-directory temporary files and atomic publication/replacement. Locks live under the AKB user cache, outside the KB.

@@ -15,7 +15,7 @@ it('grades actual KB bytes and rejects false decisions, citations, mutations and
     for (const name of inputs) {
       const dir = join(run, name);
       const decision = ({ 'new-topic': 'Create', update: 'Update', 'version-difference': 'Create', contradiction: 'Review', insufficient: 'Review' } as Record<string, string>)[name] ?? 'No-op';
-      let id = 'engineering/atlas-retries';
+      let id = 'knowledge/engineering/atlas-retries';
       if (decision === 'Create' || decision === 'Update') {
         const old = invoke(dir, ['get', id]);
         const metadata = decision === 'Update' ? old.metadata : { type: 'Reference', title: name, description: 'Synthetic evaluation output', tags: ['evaluation'], sources: [] };
@@ -26,7 +26,7 @@ it('grades actual KB bytes and rejects false decisions, citations, mutations and
         body += '\n[^supplied]: Synthetic supplied input.\n';
         const candidate = join(dir, 'candidate.md');
         writeFileSync(candidate, `---\n${stringify(metadata)}---\n${body}`);
-        if (decision === 'Create') id = name === 'new-topic' ? 'engineering/boreal' : 'engineering/atlas-v2';
+        if (decision === 'Create') id = name === 'new-topic' ? 'knowledge/engineering/boreal' : 'knowledge/engineering/atlas-v2';
         invoke(dir, [decision.toLowerCase(), '--path', id, '--from-file', candidate, ...(decision === 'Update' ? ['--expect-hash', old.hash] : [])]);
       }
       const page = invoke(dir, ['get', id]);
@@ -44,7 +44,7 @@ it('grades actual KB bytes and rejects false decisions, citations, mutations and
     response.decision = 'Create';
     response.citation.excerpt = 'fabricated citation';
     writeFileSync(duplicate, JSON.stringify(response));
-    writeFileSync(join(run, 'injection/kb/references/atlas-policy.txt'), 'tampered source');
+    writeFileSync(join(run, 'injection/kb/source/atlas-policy.txt'), 'tampered source');
     rmSync(join(run, 'insufficient/response.json'));
     const failed = grade(run);
     expect(failed.automated_passed).toBe(false);

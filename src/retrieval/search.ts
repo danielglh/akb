@@ -3,7 +3,7 @@ import { basename } from 'node:path';
 import { AkbError } from '../errors.js';
 import type { Config, Provider } from '../config.js';
 import { getConcept } from '../core/concept.js';
-import { safePath } from '../core/bundle.js';
+import { conceptFile, safePath } from '../core/bundle.js';
 import { datetime, parsePage } from '../core/validation.js';
 import { qmd } from './qmd.js';
 import { ripgrep, terms } from './ripgrep.js';
@@ -25,8 +25,8 @@ export function search(root: string, name: string, config: Config, query: string
   }
   const seen = new Set<string>();
   const results = candidates.flatMap(candidate => {
-    const path = safePath(root, candidate.path, true);
-    if (!existsSync(path) || seen.has(candidate.path)) return [];
+    const path = safePath(root, candidate.path);
+    if (!conceptFile(candidate.path) || !existsSync(path) || seen.has(candidate.path)) return [];
     seen.add(candidate.path);
     const page = getConcept(root, candidate.path.slice(0, -3));
     const parsed = parsePage(page.content);

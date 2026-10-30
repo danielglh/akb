@@ -1,4 +1,4 @@
-import { lstatSync, realpathSync, readdirSync, readFileSync, mkdirSync, openSync, closeSync, unlinkSync } from 'node:fs';
+import { existsSync, lstatSync, realpathSync, readdirSync, readFileSync, mkdirSync, openSync, closeSync, unlinkSync } from 'node:fs';
 import { resolve, join, relative, isAbsolute, basename } from 'node:path';
 import { homedir } from 'node:os';
 import { createHash } from 'node:crypto';
@@ -6,6 +6,9 @@ import { AkbError, fileError } from '../errors.js';
 import { git } from '../process.js';
 
 export const reserved = (path: string): boolean => ['index.md', 'log.md'].includes(basename(path).toLowerCase());
+export const contentDirectories = ['knowledge', 'source'] as const;
+export const conceptFile = (path: string): boolean => path.endsWith('.md') && !reserved(path) &&
+  contentDirectories.some(dir => path.startsWith(`${dir}/`));
 const excluded = new Set(['node_modules', 'dist', 'build', 'vendor', 'coverage']);
 export const hash = (bytes: string | Buffer): string => createHash('sha256').update(bytes).digest('hex');
 export const expand = (path: string): string => path === '~' ? homedir() : path.startsWith('~/') ? join(homedir(), path.slice(2)) : resolve(path);
@@ -30,8 +33,8 @@ export function safePath(root: string, rel: string, concept = false): string {
   const segments = rel.split('/');
   if (!rel || isAbsolute(rel) || rel.includes('\\') || /[\x00-\x1f\x7f]/.test(rel) ||
       segments.some(x => !x || x === '.' || x === '..' || x.startsWith('.') || excluded.has(x.toLowerCase())) ||
-      (concept && (!rel.endsWith('.md') || reserved(rel))))
-    throw new AkbError('UNSAFE_PATH', 'Use a Bundle-relative path outside reserved and control directories.', 6);
+      (concept && !conceptFile(rel)))
+    throw new AkbError('UNSAFE_PATH', 'Use a Bundle-relative path outside reserved and control directories; Concept paths must be under knowledge/ or source/.', 6);
   let cursor = root;
   for (const segment of segments) {
     try {
@@ -69,7 +72,25 @@ export function markdownFiles(root: string): string[] {
       else if (entry.isFile() && entry.name.endsWith('.md')) files.push(rel);
     }
   }
-  try { walk(''); } catch (error) { fileError(error); }
+  try {
+    if (existsSync(join(root, 'source-text')) && !existsSync(join(root, 'source')))
+      throw new AkbError('INVALID_BUNDLE', 'Rename legacy source-text/ to source/ and update its references explicitly; AKB will not move user files automatically.', 3);
+    let found = false;
+    for (const dir of contentDirectories) {
+      const path = safePath(root, dir);
+      if (!existsSync(path)) continue;
+      if (!lstatSync(path).isDirectory()) throw new AkbError('INVALID_BUNDLE', `${dir} must be a directory.`, 3);
+      found = true;
+      walk(dir);
+    }
+    if (!found) throw new AkbError('INVALID_BUNDLE', 'KB content must be under knowledge/ or source/. Move legacy pages explicitly; AKB will not move them automatically.', 3);
+    for (const entry of readdirSync(root)) {
+      if (reserved(entry)) {
+        const path = safePath(root, entry);
+        if (lstatSync(path).isFile()) files.push(entry);
+      }
+    }
+  } catch (error) { fileError(error); }
   return files;
 }
 

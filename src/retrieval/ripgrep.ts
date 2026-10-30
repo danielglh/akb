@@ -1,12 +1,12 @@
 import { run } from '../process.js';
-import { markdownFiles, reserved } from '../core/bundle.js';
+import { conceptFile, markdownFiles } from '../core/bundle.js';
 import type { Candidate, Retriever, SearchRequest } from './interface.js';
 
 export const terms = (query: string): string[] => [...new Set(query.trim().split(/\s+/u))];
 
 export const ripgrep: Retriever = {
   search({ root, query }: SearchRequest): Candidate[] {
-    const files = markdownFiles(root).filter(path => !reserved(path));
+    const files = markdownFiles(root).filter(conceptFile);
     const matching = new Map<string, Set<number>>();
     terms(query).forEach((term, termIndex) => {
       for (let offset = 0; offset < files.length; offset += 100) {

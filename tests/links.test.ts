@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it } from 'vitest';
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { linkDiagnostics } from '../src/core/links.js';
@@ -50,10 +50,31 @@ it('allows non-path source scope descriptors without attempting to open them', (
 });
 it('includes navigation links in lint but broken links do not invalidate OKF', () => {
   writeFileSync(join(root, 'index.md'), '# Knowledge\n\n[Missing](missing.md)\n');
-  createConcept(root, 'topic', page('[Missing](/missing.md)'));
+  createConcept(root, 'knowledge/topic', page('[Missing](/missing.md)'));
   const result = lintBundle(root);
   expect(result.pending_checks).toEqual([]);
   expect(result.checks).toContain('markdown_links');
   expect(result.diagnostics.filter(x => x.code === 'BROKEN_LINK')).toHaveLength(2);
   expect(result.valid).toBe(true);
+});
+
+it('lints only knowledge and source pages plus navigation, leaving repository docs untouched', () => {
+  mkdirSync(join(root, 'knowledge'), { recursive: true });
+  mkdirSync(join(root, 'source'), { recursive: true });
+  const docs = ['README.md', 'INSTALL.md', 'AGENTS.md'];
+  for (const name of docs) writeFileSync(join(root, name), '# Instructions\n\n[Example](not-real.md)\n');
+  writeFileSync(join(root, 'knowledge/topic.md'), page('Knowledge scopeprobe. [Instructions](/README.md)'));
+  writeFileSync(join(root, 'source/source.md'), page('Source scopeprobe.'));
+  const scoped = lintBundle(root);
+  expect(scoped.valid).toBe(true);
+  expect(scoped.diagnostics.some(issue => docs.includes(issue.path))).toBe(false);
+  writeFileSync(join(root, 'knowledge/broken.md'), '# Missing frontmatter\n');
+  writeFileSync(join(root, 'source/broken.md'), '---\ntype: [broken\n---\n');
+  const broken = lintBundle(root);
+  expect(broken.valid).toBe(false);
+  expect(broken.diagnostics).toEqual(expect.arrayContaining([
+    expect.objectContaining({ path: 'knowledge/broken.md', code: 'INVALID_FRONTMATTER', severity: 'error' }),
+    expect.objectContaining({ path: 'source/broken.md', code: 'INVALID_YAML', severity: 'error' }),
+  ]));
+  for (const name of docs) expect(readFileSync(join(root, name), 'utf8')).toBe('# Instructions\n\n[Example](not-real.md)\n');
 });

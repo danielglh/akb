@@ -12,7 +12,7 @@ const project = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const cli = join(project, 'dist/cli.js');
 const fixtures = join(project, 'tests/fixtures/ingest');
 const cases = JSON.parse(readFileSync(join(fixtures, 'cases.json'), 'utf8'));
-const atlas = 'engineering/atlas-retries.md';
+const atlas = 'knowledge/engineering/atlas-retries.md';
 const json = (path, value) => writeFileSync(path, JSON.stringify(value, null, 2) + '\n');
 const digest = value => createHash('sha256').update(value).digest('hex');
 
@@ -73,6 +73,7 @@ Pass --kb evaluation on every KB-scoped CLI invocation; there is no default KB.
 Use CLI writes only. Do not commit. Do not modify config, input.txt or files outside this case directory.
 Do not inspect evaluation expectations, graders, baseline or other cases.
 Use ${pathToFileURL(join(dir, 'input.txt')).href} for the supplied source resource.
+Store Concepts only under knowledge/ or source/ and include that prefix in --path and get IDs.
 Keep unverified changes draft; preserve existing supported facts and sources.
 After ingestion, read current KB evidence and write ${join(dir, 'response.json')} as JSON:
 {"agent":"actual agent/model or unknown","decision":"Create|Update|No-op|Review","reason":"why","citation":{"path":"bundle-relative Concept.md","line":1,"excerpt":"exact supporting text on that line"}}
